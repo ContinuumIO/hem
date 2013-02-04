@@ -17,6 +17,7 @@ argv = optimist.usage([
 ].join("\n"))
 .alias('p', 'port')
 .alias('d', 'debug')
+.alias('s', 'split')
 .alias('t', 'tests')
 .argv
 
@@ -36,14 +37,14 @@ class Hem
   options:
     slug:         './slug.json'
     paths:        ['./app']
-    
+
     port:         process.env.PORT or argv.port or 9294
     host:         argv.host or 'localhost'
     useProxy:     argv.useProxy or false
     apiHost:      argv.apiHost or 'localhost'
     apiPort:      argv.apiPort or 8080
     proxyPort:    argv.proxyPort or 8001
-    
+
     public:       './public'
     css:          './css'
     cssPath:      '/application.css'
@@ -91,11 +92,11 @@ class Hem
     # The spine app and the api need to appear to the browser to be coming from
     # the same host and port to avoid crossDomain ajax issues.
     # Ultimately it may be a good idea to configure an api server to accept
-    # calls from other domains but sometimes not... 
+    # calls from other domains but sometimes not...
     if @options.useProxy
       console.log "proxy server @ http://localhost:#{@options.proxyPort}"
       startsWithSpinePath = new RegExp("^#{@options.baseSpinePath}")
-      
+
       httpProxy.createServer (req, res, proxy) =>
         if startsWithSpinePath.test(req.url)
           req.url = req.url.replace(@options.baseSpinePath, '/')
@@ -120,9 +121,8 @@ class Hem
     ## TODO: make generic css/js packages that can be looped over
     ## TODO: create build method on package to compile and write file
     if options.hem
-      console.log "Building hem target: #{@hemPackage().target}"
-      source = @hemPackage().compile(not argv.debug)
-      fs.writeFileSync(@hemPackage().target, source)
+      console.log "Building hem target"
+      @hemPackage().write_package()
 
     if options.css
       console.log "Building css target: #{@cssPackage().target}"
@@ -130,9 +130,8 @@ class Hem
       fs.writeFileSync(@cssPackage().target, source)
 
     if options.specs
-      console.log "Building specs target: #{@specsPackage().target}"
-      source = @specsPackage().compile()
-      fs.writeFileSync(@specsPackage().target, source)
+      console.log "Building specs target"
+      @specsPackage().write_package()
 
   watch: () ->
     @build()
@@ -173,6 +172,7 @@ class Hem
     return help() unless @[command]
     switch command
       when 'build'  then console.log 'Build application'
+      when 'build_split'  then console.log 'Build split application'
       when 'watch'  then console.log 'Watching application'
       when 'test'   then console.log 'Test application'
     @[command]()
@@ -194,16 +194,22 @@ class Hem
       dependencies : @options.dependencies
       paths        : @options.paths
       libs         : @options.libs
-      target       : path.join(@options.public, @options.jsPath)
+      target_dir : @options.public
+      target_file : @options.jsPath
+      uglify : not argv.debug
+      split : argv.split
     )
 
   specsPackage: ->
     Package.createPackage(
       identifier : 'specs'
       paths      : @options.specs
-      target     : path.join(@options.testPublic, @options.specsPath)
+      target_dir : @options.testPublic
+      target_file : @options.specsPath
       extraJS    : "require('lib/setup'); for (var key in specs.modules) specs(key);"
       test       : true
+      uglify : false
+      split : false
     )
 
 module.exports = Hem

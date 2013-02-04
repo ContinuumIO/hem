@@ -1,0 +1,3 @@
+window._modules[<%- JSON.stringify(@m.id) %>] = function(exports, require, module){
+    <%- @m.compile() %>
+}

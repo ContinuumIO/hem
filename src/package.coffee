@@ -1,11 +1,17 @@
 fs           = require('fs')
+pathlib         = require('path')
 eco          = require('eco')
 uglify       = require('uglify-js')
 compilers    = require('./compilers')
-stitch       = require('../assets/stitch')
+_ = require('underscore')
 Dependency   = require('./dependency')
 Stitch       = require('./stitch')
 {toArray}    = require('./utils')
+
+#templates
+stitch       = require('../assets/stitch')
+individual   = require('../assets/individual')
+stitchindividual   = require('../assets/stitchindividual')
 
 class Package
   constructor: (config = {}) ->
@@ -13,24 +19,71 @@ class Package
     @libs         = toArray(config.libs || [])
     @paths        = toArray(config.paths || [])
     @dependencies = toArray(config.dependencies || [])
-    @target       = config.target
+    @target_dir       = config.target_dir
+    @target_file       = config.target_file #only used for single
     @extraJS      = config.extraJS or ""
     @test         = config.test
+    @uglify       = config.uglify #only for js
+    @split        = config.split #only for js
 
-  compileModules: ->
+  write_package_single : () ->
+    source = @compile_single()
+    target = pathlib.join(@target_dir, @target_file)
+    console.log(target)
+    fs.writeFileSync(target, source)
+
+  write_package_split : () ->
+    sources = @compile_split()
+    fnames = _.map(this.modules, (module) ->
+      return module.id.split("/").join("_") + ".js"
+    )
+    fnames.push(@target_file)
+    for result in _.zip(fnames, sources.modules)
+      [fname, source] = result
+      debugger;
+      fs.writeFileSync(pathlib.join(@target_dir, fname), source)
+
+  write_package : () ->
+    if @split
+      @write_package_split()
+    else
+      @write_package_single()
+
+  compileModules: (split) ->
     @dependency or= new Dependency(@dependencies)
     @stitch       = new Stitch(@paths)
     @modules      = @dependency.resolve().concat(@stitch.resolve())
-    stitch(identifier: @identifier, modules: @modules)
+    if not split
+      return stitch(identifier: @identifier, modules: @modules)
+    else
+      result = []
+      for m in @modules
+        result.push(individual({m : m}))
+      result.push(stitchindividual({identifier : @identifier}))
+      return result
 
   compileLibs: ->
     (fs.readFileSync(path, 'utf8') for path in @libs).join("\n")
 
-  compile: (minify) ->
+  compile_single: () ->
     try
       result = [@compileLibs(), @compileModules(), @extraJS].join("\n")
-      result = uglify(result) if minify
+      result = uglify(result) if @uglify
       result
+    catch ex
+      if ex.stack
+        console.error ex
+      else
+        console.trace ex
+      result = "console.log(\"#{ex}\");"
+
+  compile_split : () ->
+    try
+      result =
+        libs : @compileLibs()
+        modules : @compileModules(true),
+        extra : @extraJS
+      return result
     catch ex
       if ex.stack
         console.error ex
@@ -45,7 +98,7 @@ class Package
     (env, callback) =>
       callback(200,
         'Content-Type': 'text/javascript',
-        @compile())
+        @compile_single())
 
 module.exports =
   compilers:  compilers
