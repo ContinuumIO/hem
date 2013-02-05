@@ -21,6 +21,8 @@ class Package
     @dependencies = toArray(config.dependencies || [])
     @target_dir       = config.target_dir
     @target_file       = config.target_file #only used for single
+    @extrajs_file       = '_extra.js'
+    @targets_file       = 'targets.json'
     @extraJS      = config.extraJS or ""
     @test         = config.test
     @uglify       = config.uglify #only for js
@@ -31,6 +33,9 @@ class Package
     target = pathlib.join(@target_dir, @target_file)
     console.log(target)
     fs.writeFileSync(target, source)
+    fs.writeFileSync(pathlib.join(@target_dir, @targets_file),
+      JSON.stringify([target])
+    )
 
   write_package_split : () ->
     sources = @compile_split()
@@ -40,8 +45,15 @@ class Package
     fnames.push(@target_file)
     for result in _.zip(fnames, sources.modules)
       [fname, source] = result
-      debugger;
       fs.writeFileSync(pathlib.join(@target_dir, fname), source)
+    fs.writeFileSync(pathlib.join(@target_dir, @extrajs_file),
+      sources.extraJS)
+    fnames.push(@extrajs_file)
+    fnames = _.map(fnames, (fname) => return pathlib.join(@target_dir, fname))
+    fnames = fnames.concat(@libs)
+    fs.writeFileSync(pathlib.join(@target_dir, @targets_file),
+      JSON.stringify(fnames)
+    )
 
   write_package : () ->
     if @split
@@ -80,7 +92,7 @@ class Package
   compile_split : () ->
     try
       result =
-        libs : @compileLibs()
+        libs : null # we just need to add libs to target.json
         modules : @compileModules(true),
         extra : @extraJS
       return result
