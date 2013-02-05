@@ -46,6 +46,7 @@ class Hem
     proxyPort:    argv.proxyPort or 8001
 
     public:       './public'
+    css_public:   './public'
     css:          './css'
     cssPath:      '/application.css'
     libs:         []
@@ -56,6 +57,7 @@ class Hem
     testPath:     '/test'
     specs:        './test/specs'
     specsPath:    '/specs.js'
+    build_specs : true
 
   constructor: (options = {}) ->
     @options[key] = value for key, value of options
@@ -117,7 +119,7 @@ class Hem
     packages = [@hemPackage(), @cssPackage(), @specsPackage()]
     pkg.unlink() for pkg in packages
 
-  build: (options = { hem: true, css: true, specs: true }) ->
+  build: (options = { hem: true, css: true, specs: @build_specs }) ->
     ## TODO: make generic css/js packages that can be looped over
     ## TODO: create build method on package to compile and write file
     if options.hem
@@ -126,6 +128,7 @@ class Hem
 
     if options.css
       console.log "Building css target: #{@cssPackage().target}"
+      temp = @cssPackage()
       source = @cssPackage().compile()
       fs.writeFileSync(@cssPackage().target, source)
 
@@ -186,7 +189,7 @@ class Hem
   cssPackage: ->
     css.createPackage(
       path   : @options.css
-      target : path.join(@options.public, @options.cssPath)
+      target : path.join(@options.css_public, @options.cssPath)
     )
 
   hemPackage: ->
